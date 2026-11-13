@@ -6,8 +6,21 @@ const API = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\
 const imageUrl = url => !url ? '' : url.startsWith('/uploads/') ? API + url : url;
 const date = value => value ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
 async function request(path, options = {}) {
-  const response = await fetch(API + '/api' + path, { ...options, headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) } });
-  const data = await response.json();
+  const url = API + '/api' + path;
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(options.headers || {})
+    }
+  });
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Backend at "${url}" returned HTML instead of JSON. Check that VITE_API_URL points to your backend URL.`);
+  }
   if (!response.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
