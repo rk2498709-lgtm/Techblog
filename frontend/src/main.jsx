@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Link, Routes, Route, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import './style.css';
-const API = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const API = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
 const imageUrl = url => !url ? '' : url.startsWith('/uploads/') ? API + url : url;
 const date = value => value ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
 async function request(path, options = {}) {
