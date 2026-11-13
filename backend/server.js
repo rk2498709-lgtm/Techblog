@@ -34,8 +34,17 @@ async function connectDB() {
     isConnected = true;
     return;
   }
-  const uri = process.env.MONGO_URI;
+  let uri = (process.env.MONGO_URI || '').trim();
   if (!uri) throw new Error('MONGO_URI is missing. Please set it in your environment variables.');
+  
+  // Strip accidental quotes or "MONGO_URI=" prefix if pasted into Vercel
+  if ((uri.startsWith('"') && uri.endsWith('"')) || (uri.startsWith("'") && uri.endsWith("'"))) {
+    uri = uri.slice(1, -1).trim();
+  }
+  if (uri.startsWith('MONGO_URI=')) {
+    uri = uri.replace(/^MONGO_URI=\s*/, '').trim();
+  }
+
   await mongoose.connect(uri);
   isConnected = true;
 }
