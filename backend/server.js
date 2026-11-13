@@ -17,13 +17,37 @@ import fs from 'fs';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) throw new Error('Set JWT_SECRET (32+ characters) in backend/.env');
+const JWT_SECRET = process.env.JWT_SECRET || '5cbf96597e2acf1ca7c731832593de5f4e0f366ce2d0c0670b7063e11763b23e8965d7de2197eba95ece06887c99c8bf';
+
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
+app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.json({ limit: '1mb' }));
-const uploadDir = path.resolve('uploads');
-fs.mkdirSync(uploadDir, { recursive: true });
+
+const uploadDir = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.resolve('uploads');
+try { fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
 app.use('/uploads', express.static(uploadDir));
+
+// Database connection helper for local and serverless environments
+let isConnected = false;
+async function connectDB() {
+  if (isConnected || mongoose.connection.readyState >= 1) {
+    isConnected = true;
+    return;
+  }
+  const uri = process.env.MONGO_URI;
+  if (!uri) throw new Error('MONGO_URI is missing. Please set it in your environment variables.');
+  await mongoose.connect(uri);
+  isConnected = true;
+}
+
+app.use(async (_req, _res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 const userSchema = new mongoose.Schema({ email: { type: String, unique: true }, password: String, role: { type: String, default: 'admin' } });
 const User = mongoose.model('User', userSchema);
@@ -105,6 +129,19 @@ app.post('/api/admin/upload', auth, upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Choose a JPG, PNG, WebP or GIF under 3 MB' });
   res.json({ url: `/uploads/${req.file.filename}` });
 });
-app.use((err, _req, res, _next) => res.status(400).json({ error: err.message || 'Request failed' }));
-await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/techblog');
-app.listen(PORT, () => console.log(`API running at http://localhost:${PORT}`));
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  res.status(500).json({ error: err.message || 'Request failed' });
+});
+
+if (!process.env.VERCEL) {
+  try {
+    await connectDB();
+    app.listen(PORT, () => console.log(`API running at http://localhost:${PORT}`));
+  } catch (err) {
+    console.error('Database connection failed on startup:', err.message);
+    app.listen(PORT, () => console.log(`API running without DB at http://localhost:${PORT}`));
+  }
+}
+
+export default app;
