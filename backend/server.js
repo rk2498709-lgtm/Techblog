@@ -16,6 +16,7 @@ import multer from 'multer';
 import fs from 'fs';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || '5cbf96597e2acf1ca7c731832593de5f4e0f366ce2d0c0670b7063e11763b23e8965d7de2197eba95ece06887c99c8bf';
 
@@ -27,6 +28,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
 app.options('*', cors());
+
+// Quick preflight resolution
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 app.use(express.json({ limit: '1mb' }));
 
 const uploadDir = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.resolve('uploads');
@@ -81,16 +89,16 @@ const slugify = text => String(text || '').toLowerCase().trim().replace(/[^a-z0-
 function auth(req, res, next) {
   try {
     const token = (req.headers.authorization || '').replace(/^Bearer /, '');
-    const user = jwt.verify(token, process.env.JWT_SECRET);
+    const user = jwt.verify(token, JWT_SECRET);
     if (user.role !== 'admin') return res.sendStatus(403);
     req.user = user; next();
   } catch { res.status(401).json({ error: 'Please sign in again.' }); }
 }
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
-app.post('/api/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false }), async (req, res) => {
+app.post('/api/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, validate: { xForwardedForHeader: false }, standardHeaders: 'draft-7', legacyHeaders: false }), async (req, res) => {
   const user = await User.findOne({ email: String(req.body.email || '').toLowerCase() });
   if (!user || !(await bcrypt.compare(String(req.body.password || ''), user.password))) return res.status(401).json({ error: 'Invalid email or password' });
-  res.json({ token: jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '8h' }) });
+  res.json({ token: jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '8h' }) });
 });
 app.get('/api/categories', async (_req, res) => res.json(await Category.find().sort('name')));
 app.post('/api/categories', auth, async (req, res) => {
