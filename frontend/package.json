@@ -1,0 +1,1 @@
+{"name":"techblog-web","version":"1.0.0","type":"module","scripts":{"dev":"vite --host","build":"vite build","preview":"vite preview"},"dependencies":{"vite":"^6.0.5","react":"^18.3.1","react-dom":"^18.3.1","react-router-dom":"^7.1.1"},"devDependencies":{}}
